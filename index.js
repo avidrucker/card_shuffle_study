@@ -58,7 +58,7 @@ function shuffle(array) {
   }
 }
 
-/** Disable all clicks (pointer-events: none). */
+/** Disable all clicks on the cards (pointer-events: none). */
 function disableCardClicks() {
   cardElements.forEach((card) => {
     card.classList.add("disabled-clicks");
