@@ -7,19 +7,33 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="tachyons.min.css" />
 </head>
-<body>
-  <!-- Buttons -->
+<body class="vh-100 w-100 bg-black overflow-hidden">
+  <!-- Buttons + Input -->
   <div class="buttons absolute top-2 right-2">
+    <!-- Numeric input to select how many cards to deal (3,4,5) -->
+    <input 
+      id="cardCountInput" 
+      type="number" 
+      min="3" 
+      max="5" 
+      value="4"
+      class="mw3 pa2 ba b--light-silver"
+      title="Choose number of cards (3-5)" />
+    
     <!-- The first button to deal the cards from top-left corner -->
     <button id="dealBtn">Deal</button>
+    
     <!-- The second button to flip, gather, shuffle, etc. -->
     <button id="goBtn">Play</button>
+    
     <!-- A new restart button that resets everything -->
     <button id="restartBtn">Restart</button>
   </div>
+
+  <!-- Optionally, a visible deck area in the top-left corner -->
+  <div id="deck" class="ba b--white top-2 left-2 w4 h4 absolute"></div>
 
   <!-- Link to our external JS -->
   <script src="index.js"></script>
 </body>
 </html>
-
