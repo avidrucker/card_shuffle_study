@@ -1,0 +1,130 @@
+/* --- General Page Styles --- */
+body {
+  font-family: sans-serif;
+  margin: 20px;
+  background: black;
+  text-align: center;
+}
+
+h1 {
+  margin-bottom: 1em;
+}
+
+.buttons {
+  margin-bottom: 1em;
+}
+
+button {
+  font-size: 1rem;
+  padding: 0.5em 1em;
+  cursor: pointer;
+  margin: 0 0.25em;
+}
+
+/* 
+   Each card is absolutely positioned inside card-container
+   so we can move it around (translate, scale).
+*/
+.card {
+  position: absolute;
+  width: 100px;
+  height: 150px;
+  perspective: 1000px; /* needed for 3D flips */
+
+  /* 
+     This transition handles movement (translate/scale) changes.
+     E.g. flying in from top-left, gathering in center, etc.
+  */
+  transition: transform 1s ease;
+  cursor: pointer;
+}
+
+/* 
+   Inner wrapper for front/back faces so we can rotate it 180° for flips.
+   We'll define a separate 0.6s transition just for flipping.
+*/
+.card-transition {
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.6s ease;
+}
+
+/* Card faces (front/back) */
+.card-face {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  border: 1px solid white;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.5rem;
+}
+
+/* Front face is visible by default */
+.front {
+  background-color: darkgray;
+  z-index: 2;
+}
+
+/* Back face is hidden by rotateY(180deg) */
+.back {
+  background: dimgray
+    url('https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Generic_cardback.svg/300px-Generic_cardback.svg.png')
+    center/cover no-repeat;
+  transform: rotateY(180deg);
+}
+
+/* If the card is "flipped," we rotate card-transition 180° */
+.card.flipped .card-transition {
+  transform: rotateY(180deg);
+}
+
+/* 
+   We'll have a class that disables pointer events
+   so the user can't click the cards while they're moving/flipping.
+*/
+.disabled-clicks {
+  pointer-events: none;
+}
+
+/* --- ANIMATION HELPERS FOR FLYING IN --- */
+
+/* 
+   "deck-position" represents the top-left corner location 
+   plus half-size, plus face-down orientation.
+   We'll place it near (say) 30px from the left, 30px from the top,
+   scale(0.5) for half-size, and rotateY(180deg) so it's face-down.
+*/
+.deck-position {
+  transform: translate(30px, 30px) scale(0.5) rotateY(180deg) !important;
+  /* The "!important" can ensure it overrides other transform styles 
+     that might be set inline. Alternatively, you can remove inline transforms 
+     until the "deal" animation is done. */
+}
+
+/* Let #deck be absolutely positioned at top-left. */
+#deck {
+  position: absolute;
+  top: 30px;
+  left: 30px;
+  width: 100px; /* not strictly necessary, but if you want a visible 'deck' area */
+  height: 140px;
+  /* Possibly show a card-back image to visually represent the deck */
+  background: url('cardback.png') center/cover no-repeat;
+  border: 1px solid white;
+}
+
+/* 
+   "final-position" is the normal row layout,
+   scaled back to 1, and face-up (rotateY(0deg)).
+   We'll rely on inline transforms to place them in their correct slot,
+   so we won't define a transform here to override that.
+   Instead, we'll just ensure rotateY(0deg) is set so the front is visible. 
+   But we might do that in JS by removing the flipped class, etc.
+*/
+
