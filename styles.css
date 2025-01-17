@@ -26,7 +26,6 @@ button {
   perspective: 1000px; /* needed for 3D flips */
   /* This transition handles movement (translate/scale/etc.) */
   transition: transform 1s ease;
-  cursor: pointer;
 }
 
 /* The wrapper for flipping front/back faces */

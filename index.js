@@ -62,6 +62,7 @@ function shuffle(array) {
 function disableCardClicks() {
   cardElements.forEach((card) => {
     card.classList.add("disabled-clicks");
+    card.classList.remove("pointer");
   });
 }
 
@@ -69,6 +70,7 @@ function disableCardClicks() {
 function enableCardClicks() {
   cardElements.forEach((card) => {
     card.classList.remove("disabled-clicks");
+    card.classList.add("pointer");
   });
 }
 
