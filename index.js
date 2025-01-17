@@ -1,31 +1,38 @@
 /****************************************************
  * 1) GLOBAL SETUP & DOM REFERENCES
  ****************************************************/
-const cardValues = ["A", "K", "Q", "J"];
 
-// Distinct z-index for each rank
-const rankZOrder = {
-  "A": 4,
-  "K": 1,
-  "Q": 3,
-  "J": 2
-};
+// By default, let's keep the possible card ranks:
+const ALL_CARD_VALUES = ["A", "K", "Q", "J", "10"]; 
+// or just keep ["A","K","Q","J"] if you only want those four. 
+// We'll handle the count logic separately.
 
-// The 4 slot positions in the row
-const cardPositions = [0, 120, 240, 360];
-const cardY = 15;
+// We'll store the card DOM elements in an array
+let cardElements = [];
+let hasFlipped = false; // track if we've done the big "Go" shuffle
 
-// The center position (gather spot)
-const centerX = (cardPositions[0] + cardPositions[cardPositions.length - 1]) / 2;
-const centerY = 15;
+// For the positions in the row. If we have up to 5 cards, let's define 5 slots.
+const cardPositions = [0, 120, 240, 360, 480];
+let cardY = 100; // we'll calculate the center of the screen later
 
-// We'll store references to our main elements
-//const container = document.getElementById("cardContainer");
+/**
+ * The center spot where we gather cards. 
+ * If we want them to gather in the horizontal center between
+ * the leftmost and rightmost used slot:
+ *
+ * We'll dynamically compute it based on how many cards we have!
+ * (Because if we have 3 cards, the rightmost slot is index=2 => 240)
+ */
+let centerX = 0;
+let centerY = 15;
+
+// Grabbing references to DOM elements
 const dealBtn = document.getElementById("dealBtn");
 const goBtn = document.getElementById("goBtn");
 const restartBtn = document.getElementById("restartBtn");
+const cardCountInput = document.getElementById("cardCountInput");
 
-// Initialize their states
+// --- Button states on load
 function setupButtonsInitial() {
   dealBtn.disabled = false;
   dealBtn.style.display = "inline-block";
@@ -33,21 +40,17 @@ function setupButtonsInitial() {
   goBtn.disabled = true;
   goBtn.style.display = "none";
 
-  restartBtn.disabled = false; 
+  restartBtn.disabled = false;
   restartBtn.style.display = "inline-block";
+
+  cardCountInput.classList.remove("hidden"); 
+  cardCountInput.disabled = false;
 }
-
-// We'll store the card elements in an array
-let cardElements = [];
-
-// A flag to track if we've done the "Go" shuffle yet
-let hasFlipped = false;
-
 
 /****************************************************
  * 2) UTILITY FUNCTIONS
  ****************************************************/
-/** Fisher-Yates shuffle in-place */
+/** Shuffle array in-place (Fisher-Yates). */
 function shuffle(array) {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -69,34 +72,60 @@ function enableCardClicks() {
   });
 }
 
+/** Remove all card elements from the DOM. */
+function removeAllCardsFromBody() {
+  const existing = document.querySelectorAll(".card");
+  existing.forEach((c) => document.body.removeChild(c));
+}
+
 /****************************************************
- * 3) INITIAL GAME CREATION
+ * 3) CREATE / INIT GAME
  ****************************************************/
 /**
- * Called once at the start (and also called by "restartGame()" to rebuild).
- * Creates the cards, puts them in the top-left corner (deck-position),
- * face-down at half-size. They do NOT appear in the row yet—this is done by "dealCards()" 
- * after the user clicks the "Deal" button.
+ * Initialize the game:
+ *  - read user input (# of cards)
+ *  - create that many cards, all face-down in the top-left deck position
  */
 function initGame() {
-  // Clear any existing cards
+  // Clear old stuff
   removeAllCardsFromBody();
   cardElements = [];
   hasFlipped = false;
 
-  // Shuffle the deck
-  const deck = [...cardValues];
-  shuffle(deck);
+  // Read how many cards from input
+  let howMany = parseInt(cardCountInput.value, 10);
+  if (!howMany || howMany < 3) howMany = 3;
+  if (howMany > 5) howMany = 5;
 
-  // Build the DOM for each card
-  deck.forEach((value, i) => {
+  // For safety, let's slice from ALL_CARD_VALUES to get exactly 'howMany' ranks.
+  // If you prefer strictly A/K/Q/J for 4, you'll handle that differently. 
+  // This is a sample approach to demonstrate up to 5 unique cards.
+  const chosenRanks = ALL_CARD_VALUES.slice(0, howMany);
+
+  // Shuffle them if you want
+  shuffle(chosenRanks);
+
+  // Compute the new centerX based on the leftmost slot=0 and the rightmost slot=(howMany-1)
+  const leftPos = cardPositions[0];
+  const rightPos = cardPositions[howMany - 1];
+  centerX = (leftPos + rightPos) / 2; // midpoint
+
+  // Create each card
+  for (let i = 0; i < howMany; i++) {
+    const rank = chosenRanks[i];
     const cardDiv = document.createElement("div");
-    cardDiv.classList.add("card", "deck-position", "flipped"); 
-    // "deck-position" means top-left corner, 50% scale, face-down
-    cardDiv.style.zIndex = rankZOrder[value];
+    cardDiv.classList.add("card", "deck-position", "flipped");
+    // "deck-position" => top-left corner, half-size, face-down
+    // "flipped" => front is hidden, back is visible
 
     // We'll store the intended slotIndex for later
     cardDiv.dataset.slotIndex = i;
+    cardDiv.dataset.value = rank;
+
+    // We'll store a placeholder zIndex for now; 
+    // it can be changed just before shuffling if you like.
+    // Initially, let's just do zIndex=2, but it's not important
+    cardDiv.style.zIndex = 2;
 
     // Build the flipping wrapper
     const cardTransition = document.createElement("div");
@@ -105,7 +134,7 @@ function initGame() {
     // Front face
     const frontFace = document.createElement("div");
     frontFace.classList.add("card-face", "front");
-    frontFace.textContent = value;
+    frontFace.textContent = rank;
 
     // Back face
     const backFace = document.createElement("div");
@@ -116,10 +145,7 @@ function initGame() {
     cardDiv.appendChild(cardTransition);
     document.body.appendChild(cardDiv);
 
-    // Store in array
-    cardElements.push(cardDiv);
-
-    // On click, if card is face-down, flip it face-up
+    // Click event -> flip card face-up
     cardDiv.addEventListener("click", () => {
       if (
         cardDiv.classList.contains("flipped") &&
@@ -129,112 +155,142 @@ function initGame() {
       }
     });
 
-    // Also store the rank
-    cardDiv.dataset.value = value;
-  });
+    cardElements.push(cardDiv);
+  }
 
-  // Reset button states/messages
-  goBtn.textContent = "Go";
+  goBtn.textContent = "Play";
 }
 
 /****************************************************
- * 4) "DEAL" ANIMATION
+ * 4) DEAL (fly in) ANIMATION
  ****************************************************/
-/**
- * Moves each card from the top-left "deck" position to its final
- * row position, while also flipping from face-down to face-up and
- * scaling from 0.5 to 1. 
- */
 function dealCards() {
-  // 1) Enable transitions from .deck-position to the row
-  //    This is already set in CSS: transition: transform 1s ease;
+  // Hide the input so user can't change count mid-game
+  cardCountInput.classList.add("hidden");
+  cardCountInput.disabled = true;
 
-  // 2) After a tiny timeout, remove the "deck-position" class and remove ".flipped"
-  //    so the card grows to 100%, rotates to face-up, and moves to the row.
+  // find the center of the screen vertically
+  let windowHeight = window.innerHeight;
+  let pageCenterY = windowHeight / 2 - 50; // 50 is half the card height
+
   setTimeout(() => {
-    cardElements.forEach((card, i) => {
-      // Remove the "deck-position" class so it can animate to the final row
+    cardElements.forEach((card) => {
+      // Remove deck-position => triggers transition from top-left to row
       card.classList.remove("deck-position");
-      // Also unflip so it rotates to show the front
+      // Unflip => show front
       card.classList.remove("flipped");
 
-      // We also set the transform to its final row location:
       const slotIndex = parseInt(card.dataset.slotIndex, 10);
-      card.style.transform = `translate(${cardPositions[slotIndex]}px, ${cardY}px) scale(1) rotateY(0deg)`;
+      card.style.transform = `translate(${cardPositions[slotIndex]}px, ${pageCenterY}px) scale(1) rotateY(0deg)`;
     });
   }, 50);
 }
 
 /****************************************************
- * 5) "GO" BUTTON LOGIC: FLIP DOWN, GATHER, REDISTRIBUTE
+ * 5) "GO" LOGIC: FLIP DOWN, RANDOMIZE Z-INDEX, GATHER, REDISTRIBUTE
  ****************************************************/
+/**
+ * Flip all cards face-down.
+ */
 function flipAllCards() {
   cardElements.forEach((card) => {
     card.classList.add("flipped");
   });
 }
 
-function gatherAllCardsToCenter() {
-  cardElements.forEach((card) => {
-    card.style.transform = `translate(${centerX}px, ${centerY}px) scale(1)`;
+/**
+ * Right before the shuffle animation, 
+ * assign random zIndices from 1..N (where N is howMany).
+ * That ensures each card has a unique z‐index, but in random order.
+ */
+function randomizeZIndices() {
+  // Suppose we have 'howMany' = cardElements.length
+  const howMany = cardElements.length;
+
+  // Create an array of zIndices [1..howMany], shuffle
+  let zArray = [];
+  for (let i = 1; i <= howMany; i++) zArray.push(i);
+  shuffle(zArray);
+
+  // Assign them in the new random order
+  cardElements.forEach((card, idx) => {
+    card.style.zIndex = zArray[idx];
   });
 }
 
 /**
- * Randomly reassign slots and animate them out from center to new positions.
+ * Gather cards to centerX/centerY
+ */
+function gatherAllCardsToCenter() {
+  let windowHeight = window.innerHeight;
+  let pageCenterY = windowHeight / 2 - 50; // 50 is half the card height
+  cardElements.forEach((card) => {
+    card.style.transform = `translate(${centerX}px, ${pageCenterY}px) scale(1)`;
+  });
+}
+
+/**
+ * Randomly reassign slots and animate to new positions
  */
 function redistributeAllCardsRandomly() {
-  const newSlots = [0, 1, 2, 3];
-  shuffle(newSlots);
+  // We'll create an array of possible slots [0..howMany-1],
+  // shuffle it, then reassign each card
+  const howMany = cardElements.length;
+  let slots = [];
+  for (let i = 0; i < howMany; i++) {
+    slots.push(i);
+  }
+  shuffle(slots);
+
+  // find the center of the screen vertically
+  let windowHeight = window.innerHeight;
+  let pageCenterY = windowHeight / 2 - 50; // 50 is half the card height
 
   cardElements.forEach((card, i) => {
-    const newSlotIndex = newSlots[i];
+    const newSlotIndex = slots[i];
     card.dataset.slotIndex = newSlotIndex;
-    card.style.transform = `translate(${cardPositions[newSlotIndex]}px, ${cardY}px) scale(1)`;
+    card.style.transform = `translate(${cardPositions[newSlotIndex]}px, ${pageCenterY}px) scale(1)`;
   });
 }
 
 /****************************************************
- * 6) "RESTART" LOGIC
+ * 6) RESTART (OFF-STAGE ANIMATION + DOM REMOVAL)
  ****************************************************/
-/**
- * Reset the entire game so we can play again from scratch.
- * We remove all cards, re-init them in the top-left corner, face-down, half-scale.
- */
-function removeAllCardsFromBody() {
-  // first, locate all cards in the DOM
-  // second, remove them from the DOM
-  // document.body.removeChild(cardDiv);
-  let cardDomElements = document.body.getElementsByClassName("card");
-  while (cardDomElements.length > 0) {
-    document.body.removeChild(cardDomElements[cardDomElements.length-1]);
-  }
-}
+function animateCardsOffstageAndRemove() {
+  // 1) Move each card to .offstage => y=1200px, scale=0.5
+  // 2) Wait 1s, then remove from DOM
+  cardElements.forEach((card) => {
+    card.classList.add("offstage");
+  });
 
-function restartGame() {
-  initGame();
+  // After 1s, remove them from DOM
+  setTimeout(() => {
+    removeAllCardsFromBody();
+    // Re-init
+    setupButtonsInitial();
+    initGame();
+  }, 1000);
 }
 
 /****************************************************
- * 7) ATTACH BUTTON HANDLERS
+ * 7) BUTTON HANDLERS
  ****************************************************/
+// "Deal" button
 dealBtn.addEventListener("click", () => {
-  // Start dealing
   dealBtn.disabled = true;
   dealBtn.style.display = "none";
-  // The user wants to see the initial "fly in" animation from top-left.
+
   dealCards();
-  
-  // After dealing finishes (say 1s?), show the Go button
-  // We'll do a setTimeout matching the deal animation time
+
+  // after 1s, show "Go"
   setTimeout(() => {
     goBtn.disabled = false;
     goBtn.style.display = "inline-block";
   }, 1000);
 });
 
+// "Go" button
 goBtn.addEventListener("click", () => {
-  // Hide the Go button immediately
   goBtn.disabled = true;
   goBtn.style.display = "none";
 
@@ -244,18 +300,24 @@ goBtn.addEventListener("click", () => {
     // 1) Disable clicks
     disableCardClicks();
 
-    // 2) Flip all face-down
+    // 2) Flip face-down
     flipAllCards();
 
-    // Wait ~1.1s (0.6s for flip + 0.5s pause) before gathering
+    // 2.1) Randomize zIndices right before shuffle animation
+    // We'll do it after a small delay so we can see them flip first
+    setTimeout(() => {
+      randomizeZIndices();
+    }, 600);
+
+    // 3) Wait 1.1s => gather
     setTimeout(() => {
       gatherAllCardsToCenter();
 
-      // Wait 1s for gather + 0.5s pause = 1.5s
+      // 4) Wait 1s gather + 0.5s pause => redistribute
       setTimeout(() => {
         redistributeAllCardsRandomly();
 
-        // Wait 1s for redistribute, then re-enable clicks
+        // 5) Wait 1s => re-enable clicks
         setTimeout(() => {
           enableCardClicks();
         }, 1000);
@@ -270,21 +332,14 @@ goBtn.addEventListener("click", () => {
   }
 });
 
+// "Restart" button
 restartBtn.addEventListener("click", () => {
-  restartGame();
-
-  // Reset button states
-  setupButtonsInitial();
+  // Animate the current cards off-stage, then remove them
+  animateCardsOffstageAndRemove();
 });
 
 /****************************************************
- * 8) INITIALIZE ON PAGE LOAD
+ * 8) ON PAGE LOAD
  ****************************************************/
-initGame();
-
 setupButtonsInitial();
-/* 
-   By default, we wait for the user to press "Deal" to see the 
-   flying-in animation from top-left. 
-*/
-
+initGame(); 
