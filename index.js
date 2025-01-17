@@ -2,31 +2,30 @@
  * 1) GLOBAL SETUP & DOM REFERENCES
  ****************************************************/
 
-// By default, let's keep the possible card ranks:
-const ALL_CARD_VALUES = ["A", "K", "Q", "J", "10"]; 
-// or just keep ["A","K","Q","J"] if you only want those four. 
-// We'll handle the count logic separately.
+const DEAL_TIME_OFFSET = 125; // 0.125s delay between each card deal
+
+// Possible card ranks:
+// const allCardValues = ["A", "K", "Q", "J", "10"];
+let allCardValues = ["🐒","🦍","🦧","🐕","🐩","🐈","🐈‍⬛","🐅",
+                          "🐆","🐎","🦌","🦬","🐂","🐃","🐄","🐖",
+                          "🐏","🐑","🐐","🐪","🐫","🦙","🦒","🐘",
+                          "🦣","🦏","🦛","🐁","🐀","🐇","🐿️","🦫",
+                          "🦔","🦇","🦥","🦦","🦨","🦘","🦡","🦃",
+                          "🐓","🐤","🐦","🐧","🕊️","🦅","🦆","🦢",
+                          "🦉","🦤","🦩","🦚","🦜"];
 
 // We'll store the card DOM elements in an array
 let cardElements = [];
 let hasFlipped = false; // track if we've done the big "Go" shuffle
 
-// For the positions in the row. If we have up to 5 cards, let's define 5 slots.
-const cardPositions = [0, 120, 240, 360, 480];
-let cardY = 100; // we'll calculate the center of the screen later
+// We define a max of 5 possible horizontal "slots" for up to 5 cards.
+const SLOT_SPACING = 120;       // horizontal gap between cards
+const CARD_WIDTH = 100;         // each card is 100px wide
+const CARD_HEIGHT = 150;        // each card is 150px tall
+let centerX = 0;                // gather center X
+let centerY = 0;                // gather center Y
 
-/**
- * The center spot where we gather cards. 
- * If we want them to gather in the horizontal center between
- * the leftmost and rightmost used slot:
- *
- * We'll dynamically compute it based on how many cards we have!
- * (Because if we have 3 cards, the rightmost slot is index=2 => 240)
- */
-let centerX = 0;
-let centerY = 15;
-
-// Grabbing references to DOM elements
+// DOM references
 const dealBtn = document.getElementById("dealBtn");
 const goBtn = document.getElementById("goBtn");
 const restartBtn = document.getElementById("restartBtn");
@@ -50,6 +49,7 @@ function setupButtonsInitial() {
 /****************************************************
  * 2) UTILITY FUNCTIONS
  ****************************************************/
+
 /** Shuffle array in-place (Fisher-Yates). */
 function shuffle(array) {
   for (let i = array.length - 1; i > 0; i--) {
@@ -58,7 +58,7 @@ function shuffle(array) {
   }
 }
 
-/** Disable all clicks on the cards (pointer-events: none). */
+/** Disable all clicks (pointer-events: none). */
 function disableCardClicks() {
   cardElements.forEach((card) => {
     card.classList.add("disabled-clicks");
@@ -87,44 +87,39 @@ function removeAllCardsFromBody() {
  *  - create that many cards, all face-down in the top-left deck position
  */
 function initGame() {
-  // Clear old stuff
   removeAllCardsFromBody();
   cardElements = [];
   hasFlipped = false;
 
-  // Read how many cards from input
+  // 1) Determine how many cards
   let howMany = parseInt(cardCountInput.value, 10);
   if (!howMany || howMany < 3) howMany = 3;
   if (howMany > 5) howMany = 5;
 
-  // For safety, let's slice from ALL_CARD_VALUES to get exactly 'howMany' ranks.
-  // If you prefer strictly A/K/Q/J for 4, you'll handle that differently. 
-  // This is a sample approach to demonstrate up to 5 unique cards.
-  const chosenRanks = ALL_CARD_VALUES.slice(0, howMany);
-
-  // Shuffle them if you want
+  // 2) Choose that many ranks from allCardValues
+  //   Shuffle them so they're in random order
+  shuffle(allCardValues);
+  const chosenRanks = allCardValues.slice(0, howMany);
   shuffle(chosenRanks);
 
-  // Compute the new centerX based on the leftmost slot=0 and the rightmost slot=(howMany-1)
-  const leftPos = cardPositions[0];
-  const rightPos = cardPositions[howMany - 1];
-  centerX = (leftPos + rightPos) / 2; // midpoint
+  // 3) For the gather center, let’s do the window center
+  //    Then the card's center is at centerX, centerY, etc.
+  const windowWidth = window.innerWidth;
+  const windowHeight = window.innerHeight;
+  centerX = windowWidth / 2 - CARD_WIDTH / 2;  // center a single card horizontally
+  centerY = windowHeight / 2 - CARD_HEIGHT / 2; 
 
-  // Create each card
+  // 4) Create each card
   for (let i = 0; i < howMany; i++) {
     const rank = chosenRanks[i];
     const cardDiv = document.createElement("div");
     cardDiv.classList.add("card", "deck-position", "flipped");
-    // "deck-position" => top-left corner, half-size, face-down
-    // "flipped" => front is hidden, back is visible
 
     // We'll store the intended slotIndex for later
     cardDiv.dataset.slotIndex = i;
     cardDiv.dataset.value = rank;
 
-    // We'll store a placeholder zIndex for now; 
-    // it can be changed just before shuffling if you like.
-    // Initially, let's just do zIndex=2, but it's not important
+    // Initially, zIndex=2 (or anything). We can randomize later if needed.
     cardDiv.style.zIndex = 2;
 
     // Build the flipping wrapper
@@ -145,7 +140,7 @@ function initGame() {
     cardDiv.appendChild(cardTransition);
     document.body.appendChild(cardDiv);
 
-    // Click event -> flip card face-up
+    // Clicking a face-down card => flip face-up
     cardDiv.addEventListener("click", () => {
       if (
         cardDiv.classList.contains("flipped") &&
@@ -164,26 +159,43 @@ function initGame() {
 /****************************************************
  * 4) DEAL (fly in) ANIMATION
  ****************************************************/
+/**
+ * We'll stagger dealing the cards so each card is delayed by 0.2s from the previous.
+ * Also center them horizontally in the window.
+ */
 function dealCards() {
   // Hide the input so user can't change count mid-game
   cardCountInput.classList.add("hidden");
   cardCountInput.disabled = true;
 
-  // find the center of the screen vertically
-  let windowHeight = window.innerHeight;
-  let pageCenterY = windowHeight / 2 - 50; // 50 is half the card height
+  // howMany = number of cards
+  const howMany = cardElements.length;
+  const windowWidth = window.innerWidth;
+  const windowHeight = window.innerHeight;
 
-  setTimeout(() => {
-    cardElements.forEach((card) => {
-      // Remove deck-position => triggers transition from top-left to row
-      card.classList.remove("deck-position");
-      // Unflip => show front
-      card.classList.remove("flipped");
+  // find vertical center
+  const pageCenterY = windowHeight / 2 - CARD_HEIGHT / 2;
 
-      const slotIndex = parseInt(card.dataset.slotIndex, 10);
-      card.style.transform = `translate(${cardPositions[slotIndex]}px, ${pageCenterY}px) scale(1) rotateY(0deg)`;
-    });
-  }, 50);
+  // compute total width of the group of cards
+  // e.g. for 3 cards => 2 gaps of 120 => 240, plus 100 for the last card => 340 total width
+  // formula: totalWidth = ( (howMany -1) * SLOT_SPACING ) + CARD_WIDTH
+  const totalWidth = (howMany - 1) * SLOT_SPACING + CARD_WIDTH;
+  // compute the left offset so the group is centered horizontally
+  const leftOffset = (windowWidth - totalWidth) / 2;
+
+  // Now each card i has x = leftOffset + i*SLOT_SPACING
+  // We'll do a small stagger with setTimeout => i * DEAL_TIME_OFFSET ms
+  cardElements.forEach((card, i) => {
+    setTimeout(() => {
+      card.classList.remove("deck-position");  // remove top-left & half-scale
+      card.classList.remove("flipped");        // unflip => show front
+
+      const x = leftOffset + i * SLOT_SPACING;
+      card.style.transform = `translate(${x}px, ${pageCenterY}px) scale(1) rotateY(0deg)`;
+    }, 100 + i * DEAL_TIME_OFFSET); 
+    // small base 0.1s delay so the first card doesn't move instantly,
+    // then + DEAL_TIME_OFFSET ms for each subsequent card
+  });
 }
 
 /****************************************************
@@ -200,56 +212,54 @@ function flipAllCards() {
 
 /**
  * Right before the shuffle animation, 
- * assign random zIndices from 1..N (where N is howMany).
- * That ensures each card has a unique z‐index, but in random order.
+ * assign random zIndices from 1..N (where N = howMany).
  */
 function randomizeZIndices() {
-  // Suppose we have 'howMany' = cardElements.length
   const howMany = cardElements.length;
-
-  // Create an array of zIndices [1..howMany], shuffle
   let zArray = [];
-  for (let i = 1; i <= howMany; i++) zArray.push(i);
+  for (let i = 1; i <= howMany; i++) {
+    zArray.push(i);
+  }
   shuffle(zArray);
 
-  // Assign them in the new random order
   cardElements.forEach((card, idx) => {
     card.style.zIndex = zArray[idx];
   });
 }
 
 /**
- * Gather cards to centerX/centerY
+ * Gather cards at centerX, centerY.
  */
 function gatherAllCardsToCenter() {
-  let windowHeight = window.innerHeight;
-  let pageCenterY = windowHeight / 2 - 50; // 50 is half the card height
   cardElements.forEach((card) => {
-    card.style.transform = `translate(${centerX}px, ${pageCenterY}px) scale(1)`;
+    card.style.transform = `translate(${centerX}px, ${centerY}px) scale(1)`;
   });
 }
 
 /**
- * Randomly reassign slots and animate to new positions
+ * Randomly reassign slots and animate to new positions (still centered vertically).
  */
 function redistributeAllCardsRandomly() {
-  // We'll create an array of possible slots [0..howMany-1],
-  // shuffle it, then reassign each card
   const howMany = cardElements.length;
+  // create array [0..howMany-1], shuffle it
   let slots = [];
   for (let i = 0; i < howMany; i++) {
     slots.push(i);
   }
   shuffle(slots);
 
-  // find the center of the screen vertically
-  let windowHeight = window.innerHeight;
-  let pageCenterY = windowHeight / 2 - 50; // 50 is half the card height
+  const windowWidth = window.innerWidth;
+  const windowHeight = window.innerHeight;
+  const pageCenterY = windowHeight / 2 - CARD_HEIGHT / 2;
+  const totalWidth = (howMany - 1) * SLOT_SPACING + CARD_WIDTH;
+  const leftOffset = (windowWidth - totalWidth) / 2;
 
+  // reassign each card
   cardElements.forEach((card, i) => {
     const newSlotIndex = slots[i];
     card.dataset.slotIndex = newSlotIndex;
-    card.style.transform = `translate(${cardPositions[newSlotIndex]}px, ${pageCenterY}px) scale(1)`;
+    const x = leftOffset + newSlotIndex * SLOT_SPACING;
+    card.style.transform = `translate(${x}px, ${pageCenterY}px) scale(1)`;
   });
 }
 
@@ -257,8 +267,6 @@ function redistributeAllCardsRandomly() {
  * 6) RESTART (OFF-STAGE ANIMATION + DOM REMOVAL)
  ****************************************************/
 function animateCardsOffstageAndRemove() {
-  // 1) Move each card to .offstage => y=1200px, scale=0.5
-  // 2) Wait 1s, then remove from DOM
   cardElements.forEach((card) => {
     card.classList.add("offstage");
   });
@@ -266,7 +274,6 @@ function animateCardsOffstageAndRemove() {
   // After 1s, remove them from DOM
   setTimeout(() => {
     removeAllCardsFromBody();
-    // Re-init
     setupButtonsInitial();
     initGame();
   }, 1000);
@@ -275,21 +282,22 @@ function animateCardsOffstageAndRemove() {
 /****************************************************
  * 7) BUTTON HANDLERS
  ****************************************************/
-// "Deal" button
+// "Deal"
 dealBtn.addEventListener("click", () => {
   dealBtn.disabled = true;
   dealBtn.style.display = "none";
 
   dealCards();
 
-  // after 1s, show "Go"
+  // after 1s + (0.2*(howMany-1)) approx, show "Go"
+  // We'll be conservative and do e.g. 1s + 1s extra = 2s total
   setTimeout(() => {
     goBtn.disabled = false;
     goBtn.style.display = "inline-block";
-  }, 1000);
+  }, 2000);
 });
 
-// "Go" button
+// "Go"
 goBtn.addEventListener("click", () => {
   goBtn.disabled = true;
   goBtn.style.display = "none";
@@ -303,43 +311,53 @@ goBtn.addEventListener("click", () => {
     // 2) Flip face-down
     flipAllCards();
 
-    // 2.1) Randomize zIndices right before shuffle animation
-    // We'll do it after a small delay so we can see them flip first
+    // 2.1) randomizeZIndices after 0.6s
     setTimeout(() => {
       randomizeZIndices();
     }, 600);
 
-    // 3) Wait 1.1s => gather
+    // 3) gather after 1.1s
     setTimeout(() => {
       gatherAllCardsToCenter();
 
-      // 4) Wait 1s gather + 0.5s pause => redistribute
+      // 4) wait 1s gather + 0.5s => redistribute
       setTimeout(() => {
         redistributeAllCardsRandomly();
 
-        // 5) Wait 1s => re-enable clicks
+        // 5) after 1s => re-enable clicks
         setTimeout(() => {
           enableCardClicks();
         }, 1000);
 
       }, 1500);
-
     }, 1100);
 
-    goBtn.textContent = "Cards are shuffled! Click on any card to reveal.";
+    goBtn.textContent = "Cards are shuffled! Click any card to reveal.";
   } else {
     alert("Click on a card to reveal it, or press Restart to play again.");
   }
 });
 
-// "Restart" button
+// "Restart"
 restartBtn.addEventListener("click", () => {
-  // Animate the current cards off-stage, then remove them
   animateCardsOffstageAndRemove();
 });
 
 /****************************************************
- * 8) ON PAGE LOAD
+ * 8) CARD COUNT INPUT LISTENER
+ ****************************************************/
+/**
+ * Whenever the user changes the numeric input,
+ * we want to immediately re-init the "deck" in the top-left corner
+ * with the new number of cards (still face-down).
+ */
+cardCountInput.addEventListener("input", () => {
+  // Re-init game with the new number
+  initGame();
+});
+
+/****************************************************
+ * 9) ON PAGE LOAD
  ****************************************************/
 setupButtonsInitial();
-initGame(); 
+initGame();
