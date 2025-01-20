@@ -63,6 +63,7 @@ function disableCardClicks() {
   cardElements.forEach((card) => {
     card.classList.add("disabled-clicks");
     card.classList.remove("pointer");
+    card.classList.add("normal-cursor");
   });
 }
 
@@ -71,6 +72,7 @@ function enableCardClicks() {
   cardElements.forEach((card) => {
     card.classList.remove("disabled-clicks");
     card.classList.add("pointer");
+    card.classList.remove("normal-cursor");
   });
 }
 
@@ -154,6 +156,8 @@ function initGame() {
 
     cardElements.push(cardDiv);
   }
+
+  disableCardClicks();
 
   goBtn.textContent = "Play";
 }
@@ -308,7 +312,7 @@ goBtn.addEventListener("click", () => {
     hasFlipped = true;
 
     // 1) Disable clicks
-    disableCardClicks();
+    // disableCardClicks();
 
     // 2) Flip face-down
     flipAllCards();

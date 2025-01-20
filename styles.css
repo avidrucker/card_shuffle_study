@@ -75,6 +75,10 @@ button {
   pointer-events: none;
 }
 
+.normal-cursor {
+  cursor: default;
+}
+
 /* The initial "deck-position" = top-left corner, half-size, face-down. */
 .deck-position {
   transform: translate(2.75rem, 1.75rem) scale(0.5) rotateY(180deg) !important;
